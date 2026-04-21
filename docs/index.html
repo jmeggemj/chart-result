@@ -368,7 +368,11 @@
 
       function buildEmbedCode(vendorItemId) {
         const encodedId = encodeURIComponent(vendorItemId);
-        return `<iframe\n  src="https://<github-pages>/embed.html?vendor_item_id=${encodedId}"\n  width="100%"\n  height="520"\n  style="border:0;"\n  loading="lazy"\n></iframe>`;
+        const absoluteUrl = new URL(
+          `./embed.html?vendor_item_id=${encodedId}`,
+          window.location.href
+        ).href;
+        return `<iframe\n  src="${absoluteUrl}"\n  width="100%"\n  height="520"\n  style="border:0;"\n  loading="lazy"\n></iframe>`;
       }
 
       function buildPreviewSrc(vendorItemId) {

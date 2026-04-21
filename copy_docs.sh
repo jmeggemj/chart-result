@@ -8,5 +8,6 @@ if [ ! -d "$SRC" ]; then
   exit 1
 fi
 
-cp -r "$SRC" "$DEST"
+mkdir -p "$DEST"
+cp -r "$SRC/." "$DEST/"
 echo "Copied '$SRC' -> '$DEST'"
