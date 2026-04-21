@@ -1,0 +1,21 @@
+{
+  "name": "잔스포츠 크로스 타운 백팩 JS0A47LW",
+  "currency": "KRW",
+  "observations": [
+    {
+      "at": "2026-04-16T21:44+09:00",
+      "regular": 99000,
+      "membership": 99000
+    },
+    {
+      "at": "2026-04-19T21:49+09:00",
+      "regular": 99000,
+      "membership": 99000
+    },
+    {
+      "at": "2026-04-20T21:21+09:00",
+      "regular": 99000,
+      "membership": 99000
+    }
+  ]
+}

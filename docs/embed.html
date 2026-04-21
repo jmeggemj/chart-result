@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>상품 가격 차트</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style>
+      :root {
+        --bg: #f6f1e8;
+        --panel: rgba(255, 252, 247, 0.82);
+        --border: rgba(44, 53, 74, 0.12);
+        --shadow: 0 20px 45px rgba(39, 46, 64, 0.12);
+        --text: #202736;
+        --muted: #5e6678;
+        --membership: #ea6f2d;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(234, 111, 45, 0.18), transparent 34%),
+          radial-gradient(circle at bottom right, rgba(35, 88, 210, 0.16), transparent 32%),
+          linear-gradient(180deg, #fcf8f2 0%, var(--bg) 100%);
+      }
+
+      .shell {
+        min-height: 100vh;
+        padding: 18px;
+      }
+
+      .panel {
+        position: relative;
+        max-width: 960px;
+        margin: 0 auto;
+        min-height: 420px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(20px);
+      }
+
+      .panel::before {
+        content: "";
+        position: absolute;
+        inset: 14px;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        pointer-events: none;
+      }
+
+      #chart {
+        width: 100%;
+        height: 396px;
+      }
+
+      #chart.is-hidden {
+        visibility: hidden;
+      }
+
+      .status {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 32px 20px;
+        text-align: center;
+        color: var(--muted);
+      }
+
+      .status strong {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--text);
+        font-size: 18px;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      @media (max-width: 720px) {
+        .shell {
+          padding: 10px;
+        }
+
+        .panel {
+          min-height: 340px;
+          padding: 8px;
+          border-radius: 24px;
+        }
+
+        #chart {
+          height: 320px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <main class="panel">
+        <div id="chart" class="is-hidden"></div>
+
+        <section class="status" id="status">
+          <div>
+            <strong>차트를 준비 중입니다.</strong>
+            <div>잠시만 기다려 주세요.</div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const statusEl = document.getElementById("status");
+      const chartRoot = document.getElementById("chart");
+
+      const currencyFormatter = new Intl.NumberFormat("ko-KR", {
+        style: "currency",
+        currency: "KRW",
+        maximumFractionDigits: 0,
+      });
+      const dateOnlyFormatter = new Intl.DateTimeFormat("ko-KR", {
+        month: "long",
+        day: "numeric",
+        timeZone: "Asia/Seoul",
+      });
+      const dateTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Seoul",
+      });
+      const timeOnlyFormatter = new Intl.DateTimeFormat("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Seoul",
+      });
+
+      function formatCurrency(value) {
+        return currencyFormatter.format(value);
+      }
+
+      function formatAxisCurrency(value) {
+        if (Math.abs(value) >= 10000) {
+          const short = value / 10000;
+          const digits = Number.isInteger(short) ? 0 : 1;
+          return `₩${short.toLocaleString("ko-KR", { maximumFractionDigits: digits })}만`;
+        }
+        return `₩${Number(value).toLocaleString("ko-KR")}`;
+      }
+
+      function formatDisplayDate(value) {
+        const date = value instanceof Date ? value : new Date(value);
+        return timeOnlyFormatter.format(date) === "00:00"
+          ? dateOnlyFormatter.format(date)
+          : dateTimeFormatter.format(date);
+      }
+
+      function formatAxisDate(value) {
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          return "";
+        }
+        return `${date.getMonth() + 1}/${date.getDate()}`;
+      }
+
+      function showError(title, detail) {
+        chartRoot.classList.add("is-hidden");
+        statusEl.replaceChildren();
+        const wrapper = document.createElement("div");
+        const strong = document.createElement("strong");
+        const detailEl = document.createElement("div");
+        strong.textContent = title;
+        detailEl.textContent = detail;
+        wrapper.append(strong, detailEl);
+        statusEl.append(wrapper);
+        statusEl.classList.remove("hidden");
+      }
+
+      function validatePayload(payload) {
+        if (!payload || typeof payload !== "object") {
+          throw new Error("데이터 형식이 올바르지 않습니다.");
+        }
+        if (!payload.name || !Array.isArray(payload.observations)) {
+          throw new Error("필수 데이터가 누락되었습니다.");
+        }
+        if (payload.observations.length === 0) {
+          throw new Error("표시할 관측 데이터가 없습니다.");
+        }
+      }
+
+      function buildSeriesData(observations, key) {
+        return observations.map((item) => [new Date(item.at).getTime(), item[key]]);
+      }
+
+      function filterToWindow(observations, visibleRange) {
+        if (!visibleRange) return observations;
+        let lastPre = null;
+        const inWindow = [];
+        for (const obs of observations) {
+          if (new Date(obs.at).getTime() < visibleRange.min) {
+            lastPre = obs;
+          } else {
+            inWindow.push(obs);
+          }
+        }
+        return lastPre ? [lastPre, ...inWindow] : inWindow;
+      }
+
+      function buildVisibleRange(observations) {
+        if (!Array.isArray(observations) || observations.length === 0) {
+          return null;
+        }
+
+        const firstTimestamp = new Date(observations[0].at).getTime();
+        const lastTimestamp = new Date(observations[observations.length - 1].at).getTime();
+        const sixtyDaysMs = 60 * 24 * 60 * 60 * 1000;
+        const windowStart = lastTimestamp - sixtyDaysMs;
+
+        if (!Number.isFinite(firstTimestamp) || !Number.isFinite(lastTimestamp)) {
+          return null;
+        }
+
+        if (firstTimestamp >= windowStart) {
+          return {
+            min: firstTimestamp,
+            max: lastTimestamp,
+          };
+        }
+
+        return {
+          min: windowStart,
+          max: lastTimestamp,
+        };
+      }
+
+      function buildAxisInterval(visibleRange) {
+        if (!visibleRange) {
+          return undefined;
+        }
+
+        const range = visibleRange.max - visibleRange.min;
+        if (!Number.isFinite(range) || range <= 0) {
+          return undefined;
+        }
+
+        return range / 6;
+      }
+
+      function renderChart(payload) {
+        const chart = echarts.init(chartRoot, null, { renderer: "canvas" });
+        const visibleRange = buildVisibleRange(payload.observations);
+        const windowedObs = filterToWindow(payload.observations, visibleRange);
+        const membershipData = buildSeriesData(windowedObs, "membership");
+        const axisInterval = buildAxisInterval(visibleRange);
+        document.title = `${payload.name} 가격 차트`;
+
+        chart.setOption({
+          animation: false,
+          grid: {
+            top: 20,
+            right: 20,
+            bottom: 36,
+            left: 56,
+          },
+          tooltip: {
+            trigger: "axis",
+            axisPointer: {
+              type: "line",
+              snap: true,
+              lineStyle: { color: "rgba(32, 39, 54, 0.18)" },
+            },
+            backgroundColor: "rgba(255, 255, 255, 0.95)",
+            borderColor: "rgba(44, 53, 74, 0.12)",
+            textStyle: { color: "#202736" },
+            formatter(params) {
+              const items = Array.isArray(params) ? params : [params];
+              const item = items[0];
+              const axisValue = item ? formatDisplayDate(item.axisValue) : "";
+              const rawValue = item ? (Array.isArray(item.value) ? item.value[1] : item.value) : 0;
+              return `<div style="font-weight:700;">${axisValue}</div><div style="margin-top:6px;">${formatCurrency(rawValue)}</div>`;
+            },
+          },
+          xAxis: {
+            type: "value",
+            boundaryGap: false,
+            min: visibleRange ? visibleRange.min : undefined,
+            max: visibleRange ? visibleRange.max : undefined,
+            interval: axisInterval,
+            axisLabel: {
+              color: "#5e6678",
+              hideOverlap: true,
+              showMinLabel: true,
+              showMaxLabel: true,
+              formatter(value) {
+                return formatAxisDate(value);
+              },
+            },
+            axisLine: { lineStyle: { color: "rgba(44, 53, 74, 0.16)" } },
+            splitLine: { show: false },
+          },
+          yAxis: {
+            type: "value",
+            scale: true,
+            axisLabel: {
+              color: "#5e6678",
+              formatter(value) {
+                return formatAxisCurrency(value);
+              },
+            },
+            splitLine: {
+              lineStyle: { color: "rgba(44, 53, 74, 0.08)" },
+            },
+          },
+          series: [
+            {
+              name: "",
+              type: "line",
+              step: "end",
+              showSymbol: true,
+              symbol: "circle",
+              symbolSize: 8,
+              lineStyle: { width: 3, color: "#ea6f2d" },
+              itemStyle: { color: "#ea6f2d" },
+              emphasis: { focus: "series" },
+              data: membershipData,
+            },
+          ],
+        });
+
+        chartRoot.classList.remove("is-hidden");
+        statusEl.classList.add("hidden");
+
+        const resizeObserver = new ResizeObserver(() => chart.resize());
+        resizeObserver.observe(document.body);
+        window.addEventListener("resize", () => chart.resize());
+      }
+
+      async function init() {
+        const vendorItemId = new URLSearchParams(window.location.search).get("vendor_item_id");
+        if (!vendorItemId) {
+          showError("vendor_item_id 파라미터가 필요합니다.", "예시: embed.html?vendor_item_id=3265972233");
+          return;
+        }
+
+        try {
+          const response = await fetch(`./data/${encodeURIComponent(vendorItemId)}.json`, {
+            cache: "no-store",
+          });
+
+          if (!response.ok) {
+            if (response.status === 404) {
+              throw new Error(`vendor_item_id ${vendorItemId}에 해당하는 데이터가 없습니다.`);
+            }
+            throw new Error(`데이터를 불러오지 못했습니다. HTTP ${response.status}`);
+          }
+
+          const payload = await response.json();
+          validatePayload(payload);
+          renderChart(payload);
+        } catch (error) {
+          showError("차트를 불러오지 못했습니다.", error instanceof Error ? error.message : "알 수 없는 오류");
+        }
+      }
+
+      init();
+    </script>
+  </body>
+</html>
