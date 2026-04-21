@@ -1,0 +1,21 @@
+{
+  "name": "레노버 2025 V15 G5 IRL 코어i5 인텔 13세대, 비즈니스 블랙, 1TB, 8GB, WIN7 Pro, 83HFA06Ckr",
+  "currency": "KRW",
+  "observations": [
+    {
+      "at": "2026-03-13T22:58+09:00",
+      "regular": 1140000,
+      "membership": 1140000
+    },
+    {
+      "at": "2026-04-10T16:03+09:00",
+      "regular": 1069610,
+      "membership": 1069610
+    },
+    {
+      "at": "2026-04-13T17:21+09:00",
+      "regular": 1150000,
+      "membership": 1150000
+    }
+  ]
+}
