@@ -338,6 +338,7 @@
     </section>
 
     <script>
+      const DEFAULT_DEPLOY_VERSION = "260422-01";
       const currencyFormatter = new Intl.NumberFormat("ko-KR", {
         style: "currency",
         currency: "KRW",
@@ -366,17 +367,24 @@
         });
       }
 
+      function getDeployVersion() {
+        const version = new URLSearchParams(window.location.search).get("v");
+        return version || DEFAULT_DEPLOY_VERSION;
+      }
+
       function buildEmbedCode(vendorItemId) {
         const encodedId = encodeURIComponent(vendorItemId);
+        const encodedVersion = encodeURIComponent(getDeployVersion());
         const absoluteUrl = new URL(
-          `./embed.html?vendor_item_id=${encodedId}`,
+          `./embed.html?v=${encodedVersion}&vendor_item_id=${encodedId}`,
           window.location.href
         ).href;
         return `<iframe\n  src="${absoluteUrl}"\n  width="100%"\n  height="340"\n  style="border:0;"\n  loading="lazy"\n></iframe>`;
       }
 
       function buildPreviewSrc(vendorItemId) {
-        return `./embed.html?vendor_item_id=${encodeURIComponent(vendorItemId)}`;
+        const encodedVersion = encodeURIComponent(getDeployVersion());
+        return `./embed.html?v=${encodedVersion}&vendor_item_id=${encodeURIComponent(vendorItemId)}`;
       }
 
       function setupPreviewModal() {
@@ -462,7 +470,8 @@
         const { openModal } = setupPreviewModal();
 
         try {
-          const response = await fetch("./data/products.json", { cache: "no-store" });
+          const version = encodeURIComponent(getDeployVersion());
+          const response = await fetch(`./data/products.json?v=${version}`, { cache: "no-store" });
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
           }
@@ -498,7 +507,7 @@
               <div class="price-line">현재 일반가<strong>${formatCurrency(product.latestRegular)}</strong></div>
               ${membershipBlock}
               <div class="actions">
-                <a class="button" href="./embed.html?vendor_item_id=${encodeURIComponent(vendorItemId)}">차트 보기</a>
+                <a class="button" href="./embed.html?v=${encodeURIComponent(getDeployVersion())}&vendor_item_id=${encodeURIComponent(vendorItemId)}">차트 보기</a>
                 <button class="button secondary" type="button" data-copy-button>iframe 코드 복사</button>
                 <button class="button secondary" type="button" data-preview-button>미리보기 열기</button>
                 <button class="button secondary" type="button" data-mobile-preview-button>모바일 미리보기</button>

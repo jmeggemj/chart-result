@@ -83,6 +83,7 @@
     </main>
 
     <script>
+      const DEFAULT_DEPLOY_VERSION = "260422-01";
       const statusEl = document.getElementById("status");
       const chartRoot = document.getElementById("chart");
 
@@ -137,6 +138,11 @@
           return "";
         }
         return `${date.getMonth() + 1}/${date.getDate()}`;
+      }
+
+      function getDeployVersion() {
+        const version = new URLSearchParams(window.location.search).get("v");
+        return version || DEFAULT_DEPLOY_VERSION;
       }
 
       function showError(title, detail) {
@@ -312,14 +318,16 @@
       }
 
       async function init() {
-        const vendorItemId = new URLSearchParams(window.location.search).get("vendor_item_id");
+        const params = new URLSearchParams(window.location.search);
+        const vendorItemId = params.get("vendor_item_id");
+        const version = encodeURIComponent(getDeployVersion());
         if (!vendorItemId) {
           showError("vendor_item_id 파라미터가 필요합니다.", "예시: embed.html?vendor_item_id=3265972233");
           return;
         }
 
         try {
-          const response = await fetch(`./data/${encodeURIComponent(vendorItemId)}.json`, {
+          const response = await fetch(`./data/${encodeURIComponent(vendorItemId)}.json?v=${version}`, {
             cache: "no-store",
           });
 
